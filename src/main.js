@@ -1,14 +1,15 @@
 import iziToast from 'izitoast';
 import 'izitoast/dist/css/iziToast.min.css';
-
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
-
+import axios from 'axios';
 import icon from './img/x-octagon.svg';
 
 const userInput = document.querySelector('.data-select');
 const userList = document.querySelector('.gallery-list');
 const activeLoader = document.querySelector('.loader');
+const loadMoreBtn = document.querySelector('.load-more');
+const endMessage = document.querySelector('.end-message');
 
 const PIXABAY_API_KEY = '42133778-4b8d89235d578f5a93c0f41d5';
 
@@ -17,25 +18,36 @@ const lightbox = new SimpleLightbox('.gallery-list a', {
   captionDelay: 250,
 });
 
+let currentPage = 1;
+let currentQuery = '';
+const perPage = 15;
+let totalHits = 0;
+
 userInput.addEventListener('submit', async (e) => {
   e.preventDefault();
   const userInputValue = userInput.elements.request.value.trim();
+  currentQuery = userInputValue;
+
+  if (!userInputValue) {
+    return;
+  }
+
+  currentPage = 1;
   userList.innerHTML = '';
   activeLoader.classList.toggle('loader-active');
 
   try {
-    const searchParams = new URLSearchParams({
-      key: PIXABAY_API_KEY,
-      q: userInputValue,
-      image_type: 'photo',
-      orientation: 'horizontal',
-      safesearch: true,
-    });
-
-    const data = await fetchGallery(searchParams);
+    const data = await fetchGallery(currentQuery, currentPage);
+    totalHits = data.totalHits;
 
     if (data.totalHits > 0) {
       renderGallery(data);
+
+      if (data.hits.length < perPage) {
+        showEndMessage();
+      } else {
+        showErrorToast('Sorry, there are no images matching your search query. Please try again!');
+      }
     } else {
       showErrorToast('Sorry, there are no images matching your search query. Please try again!');
     }
@@ -47,17 +59,24 @@ userInput.addEventListener('submit', async (e) => {
   }
 });
 
-async function fetchGallery(searchParams) {
-  const response = await fetch(`https://pixabay.com/api/?${searchParams.toString()}`);
+async function fetchGallery(query, page) {
+  const searchParams = {
+    key: PIXABAY_API_KEY,
+    q: query,
+    image_type: 'photo',
+    orientation: 'horizontal',
+    safesearch: true,
+    per_page: perPage,
+    page: page,
+  };
 
-  if (!response.ok) {
-    throw new Error(response.status);
-  }
-
-  return response.json();
+  const { data } = await axios.get('https://pixabay.com/api/', { params: searchParams });
+  return data;
 }
 
 function renderGallery(data) {
+  const cardHeight = document.querySelector('.gallery-item').getBoundingClientRect().height;
+
   const markup = data.hits
     .map((hit) => {
       return `<li class="gallery-item">
@@ -93,8 +112,13 @@ function renderGallery(data) {
     .join('');
 
   userList.insertAdjacentHTML('beforeend', markup);
-
   lightbox.refresh();
+
+  // Плавна прокрутка до наступної групи зображень
+  window.scrollBy({
+    top: cardHeight * perPage,
+    behavior: 'smooth',
+  });
 }
 
 function showErrorToast(message) {
@@ -122,3 +146,37 @@ function handleFetchError(error) {
     showErrorToast('Oops! An unexpected error occurred. Please try again.');
   }
 }
+
+function showLoadMoreButton() {
+  loadMoreBtn.style.display = 'block';
+}
+
+function hideLoadMoreButton() {
+  loadMoreBtn.style.display = 'none';
+}
+
+function showEndMessage() {
+  endMessage.style.display = 'block';
+}
+
+loadMoreBtn.addEventListener('click', async () => {
+  currentPage++;
+
+  try {
+    const data = await fetchGallery(currentQuery, currentPage);
+
+    if (data.totalHits > 0) {
+      renderGallery(data);
+
+      if (data.hits.length < perPage) {
+        showEndMessage();
+        hideLoadMoreButton();
+      }
+    } else {
+      hideLoadMoreButton();
+    }
+  } catch (error) {
+    handleFetchError(error);
+  }
+});
+

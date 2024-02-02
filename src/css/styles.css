@@ -158,3 +158,22 @@
   display: flex;
   justify-content: center;
 }
+
+.load-more {
+  display: none;
+  margin: 20px 0;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  color: #fff;
+  background-color: #4caf50; 
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.load-more:hover {
+  background-color: #45a049; 
+}
