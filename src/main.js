@@ -34,7 +34,7 @@ userInput.addEventListener('submit', async (e) => {
 
   currentPage = 1;
   userList.innerHTML = '';
-  activeLoader.classList.toggle('loader-active');
+  toggleLoader();
 
   try {
     const data = await fetchGallery(currentQuery, currentPage);
@@ -45,8 +45,6 @@ userInput.addEventListener('submit', async (e) => {
 
       if (data.hits.length < perPage) {
         showEndMessage();
-      } else {
-        showErrorToast('Sorry, there are no images matching your search query. Please try again!');
       }
     } else {
       showErrorToast('Sorry, there are no images matching your search query. Please try again!');
@@ -54,8 +52,9 @@ userInput.addEventListener('submit', async (e) => {
   } catch (error) {
     handleFetchError(error);
   } finally {
-    activeLoader.classList.toggle('loader-active');
-    userInput.reset();
+    toggleLoader();
+    // Очистка лише полів форми, а не повний сброс форми
+    userInput.elements.request.value = '';
   }
 });
 
@@ -75,7 +74,7 @@ async function fetchGallery(query, page) {
 }
 
 function renderGallery(data) {
-  const cardHeight = document.querySelector('.gallery-item').getBoundingClientRect().height;
+  const cardHeight = document.querySelector('.gallery-item')?.getBoundingClientRect().height;
 
   const markup = data.hits
     .map((hit) => {
@@ -115,10 +114,27 @@ function renderGallery(data) {
   lightbox.refresh();
 
   // Плавна прокрутка до наступної групи зображень
-  window.scrollBy({
-    top: cardHeight * perPage,
-    behavior: 'smooth',
-  });
+  const newItems = data.hits.length;
+  if (newItems > 0) {
+    const scrollPosition = cardHeight * (currentPage - 1) * perPage;
+    window.scrollTo({
+      top: scrollPosition,
+      behavior: 'smooth',
+    });
+  }
+
+  // Показати або приховати кнопку "Завантажити ще" та повідомлення про кінець
+  if (data.totalHits > 0) {
+    if (data.hits.length < perPage || data.hits.length + (currentPage - 1) * perPage >= data.totalHits) {
+      showEndMessage();
+      hideLoadMoreButton();
+    } else {
+      showLoadMoreButton();
+    }
+  } else {
+    hideLoadMoreButton();
+    showEndMessage();
+  }
 }
 
 function showErrorToast(message) {
@@ -147,8 +163,14 @@ function handleFetchError(error) {
   }
 }
 
+function toggleLoader() {
+  activeLoader.classList.toggle('loader-active');
+}
+
 function showLoadMoreButton() {
   loadMoreBtn.style.display = 'block';
+  // Змінено текст кнопки для вказівки на завантаження додаткового контенту
+  loadMoreBtn.innerText = 'Load More Images';
 }
 
 function hideLoadMoreButton() {
@@ -157,6 +179,8 @@ function hideLoadMoreButton() {
 
 function showEndMessage() {
   endMessage.style.display = 'block';
+  // Змінено текст повідомлення про кінець для вказівки на завершення колекції
+  endMessage.innerText = 'End of Image Collection';
 }
 
 loadMoreBtn.addEventListener('click', async () => {
@@ -168,7 +192,7 @@ loadMoreBtn.addEventListener('click', async () => {
     if (data.totalHits > 0) {
       renderGallery(data);
 
-      if (data.hits.length < perPage) {
+      if (data.hits.length < perPage || data.hits.length + (currentPage - 1) * perPage >= data.totalHits) {
         showEndMessage();
         hideLoadMoreButton();
       }
@@ -179,4 +203,3 @@ loadMoreBtn.addEventListener('click', async () => {
     handleFetchError(error);
   }
 });
-
